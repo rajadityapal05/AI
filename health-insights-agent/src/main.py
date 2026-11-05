@@ -1,30 +1,47 @@
 import streamlit as st
+
 from auth.session_manager import SessionManager
 from components.auth_pages import show_login_page
 from components.sidebar import show_sidebar
 from components.analysis_form import show_analysis_form
 from components.footer import show_footer
-from config.app_config import APP_NAME, APP_TAGLINE, APP_DESCRIPTION, APP_ICON
+from config.app_config import (
+    APP_NAME,
+    APP_TAGLINE,
+    APP_DESCRIPTION,
+    APP_ICON,
+    PRIMARY_COLOR,
+)
 from services.ai_service import get_chat_response
+
 
 # Must be the first Streamlit command
 st.set_page_config(
-    page_title="HIA - Health Insights Agent", page_icon="🩺", layout="wide"
+    page_title=f"{APP_NAME} - Health Report Assistant",
+    page_icon=APP_ICON,
+    layout="wide",
 )
 
 # Initialize session state
 SessionManager.init_session()
 
-# Hide all Streamlit form-related elements
+# Custom application styling
 st.markdown(
-    """
+    f"""
     <style>
-        /* Hide form submission helper text */
-        div[data-testid="InputInstructions"] > span:nth-child(1) {
+        div[data-testid="InputInstructions"] > span:nth-child(1) {{
             visibility: hidden;
-        }
+        }}
+
+        .healthmate-greeting {{
+            text-align: right;
+            padding: 1rem;
+            color: {PRIMARY_COLOR};
+            font-size: 1.1em;
+            font-weight: 600;
+        }}
     </style>
-""",
+    """,
     unsafe_allow_html=True,
 )
 
@@ -32,27 +49,33 @@ st.markdown(
 def show_welcome_screen():
     st.markdown(
         f"""
-        <div style='text-align: center; padding: 50px;'>
+        <div style="text-align: center; padding: 50px 20px;">
             <h1>{APP_ICON} {APP_NAME}</h1>
             <h3>{APP_DESCRIPTION}</h3>
-            <p style='font-size: 1.2em; color: #666;'>{APP_TAGLINE}</p>
-            <p>Start by creating a new analysis session</p>
+            <p style="font-size: 1.2em; color: #666;">
+                {APP_TAGLINE}
+            </p>
+            <p>Start by creating a new analysis session.</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
     col1, col2, col3 = st.columns([2, 3, 2])
+
     with col2:
         if st.button(
-            "➕ Create New Analysis Session", use_container_width=True, type="primary"
+            "âž• Create New Analysis Session",
+            use_container_width=True,
+            type="primary",
         ):
             success, session = SessionManager.create_chat_session()
+
             if success:
                 st.session_state.current_session = session
                 st.rerun()
             else:
-                st.error("Failed to create session")
+                st.error("Failed to create session. Please try again.")
 
 
 def show_chat_history():
@@ -62,74 +85,89 @@ def show_chat_history():
 
     if success:
         for msg in messages:
-            # Skip system messages (they contain report text metadata)
+            # Skip system messages containing report metadata
             if msg.get("role") == "system":
                 continue
+
             if msg["role"] == "user":
                 st.info(msg["content"])
             else:
                 st.success(msg["content"])
+
         return messages
+
     return []
 
 
 def handle_chat_input(messages):
-    if prompt := st.chat_input("Ask a follow-up question about the report..."):
-        # Display user message immediately
+    prompt = st.chat_input(
+        "Ask a follow-up question about the report..."
+    )
+
+    if prompt:
+        # Display user message
         st.info(prompt)
 
         # Save user message
         st.session_state.auth_service.save_chat_message(
-            st.session_state.current_session["id"], prompt, role="user"
+            st.session_state.current_session["id"],
+            prompt,
+            role="user",
         )
 
-        # Get context (report text)
-        # We try to get it from session state first (for immediate use)
+        # Retrieve report context
         context_text = st.session_state.get("current_report_text", "")
 
-        # If not in session state, try to retrieve from stored system message
+        # Restore report context from stored system message if needed
         if not context_text and messages:
             for msg in messages:
-                if msg.get("role") == "system" and "__REPORT_TEXT__" in msg.get(
-                    "content", ""
+                if (
+                    msg.get("role") == "system"
+                    and "__REPORT_TEXT__" in msg.get("content", "")
                 ):
-                    # Extract report text from system message
                     content = msg.get("content", "")
-                    start_idx = content.find("__REPORT_TEXT__\n") + len(
-                        "__REPORT_TEXT__\n"
-                    )
+
+                    marker = "__REPORT_TEXT__\n"
+                    start_idx = content.find(marker) + len(marker)
                     end_idx = content.find("\n__END_REPORT_TEXT__")
-                    if start_idx > len("__REPORT_TEXT__\n") - 1 and end_idx > start_idx:
+
+                    if start_idx >= len(marker) and end_idx > start_idx:
                         context_text = content[start_idx:end_idx]
-                        # Also restore to session state for future use
                         st.session_state.current_report_text = context_text
                         break
 
-        with st.spinner("Thinking..."):
-            response = get_chat_response(prompt, context_text, messages)
+        with st.spinner("Preparing your response..."):
+            response = get_chat_response(
+                prompt,
+                context_text,
+                messages,
+            )
 
             st.success(response)
 
-            # Save AI response
+            # Save assistant response
             st.session_state.auth_service.save_chat_message(
-                st.session_state.current_session["id"], response, role="assistant"
+                st.session_state.current_session["id"],
+                response,
+                role="assistant",
             )
-            # Rerun to update history display properly
+
             st.rerun()
 
 
 def show_user_greeting():
     if st.session_state.user:
-        # Get name from user data, fallback to email if name is empty
-        display_name = st.session_state.user.get("name") or st.session_state.user.get(
-            "email", ""
+        display_name = (
+            st.session_state.user.get("name")
+            or st.session_state.user.get("email", "")
         )
+
         st.markdown(
             f"""
-            <div style='text-align: right; padding: 1rem; color: #64B5F6; font-size: 1.1em;'>
-                👋 Hi, {display_name}
+            <div class="healthmate-greeting">
+                ðŸ‘‹ Hi, {display_name}
             </div>
-        """,
+            """,
             unsafe_allow_html=True,
         )
 
@@ -142,31 +180,32 @@ def main():
         show_footer()
         return
 
-    # Show user greeting at the top
+    # User greeting
     show_user_greeting()
 
-    # Show sidebar
+    # Sidebar
     show_sidebar()
 
-    # Main chat area
+    # Main application area
     if st.session_state.get("current_session"):
-        st.title(f"📊 {st.session_state.current_session['title']}")
+        st.title(
+            f"ðŸ“Š {st.session_state.current_session['title']}"
+        )
+
         messages = show_chat_history()
 
-        # If we have messages (meaning analysis is done), show chat input
-        # Otherwise show analysis form
         if messages:
-            # We can still show the analysis form collapsed or just hide it
-            # For better UX, if analysis is done, we might not want to show the form again
-            # unless the user wants to re-analyze/start over.
-            # But the current form design allows re-analysis.
-            # Let's put the analysis form in an expander if analysis is done.
-            with st.expander("New Analysis / Update Report", expanded=False):
+            with st.expander(
+                "New Analysis / Update Report",
+                expanded=False,
+            ):
                 show_analysis_form()
 
             handle_chat_input(messages)
+
         else:
             show_analysis_form()
+
     else:
         show_welcome_screen()
 

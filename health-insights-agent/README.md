@@ -1,85 +1,77 @@
-# 🩺 HIA (Health Insights Agent)
+# 🩺 HealthMate AI
 
-AI Agent to analyze blood reports and provide detailed health insights.
+**AI-Powered Health Report Assistant**
 
-<p align="center">
-  <a href="https://github.com/harshhh28/hia/issues"><img src="https://img.shields.io/github/issues/harshhh28/hia"></a> 
-  <a href="https://github.com/harshhh28/hia/stargazers"><img src="https://img.shields.io/github/stars/harshhh28/hia"></a>
-  <a href="https://github.com/harshhh28/hia/network/members"><img src="https://img.shields.io/github/forks/harshhh28/hia"></a>
-  <a href="https://github.com/harshhh28/hia/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/License-MIT-blue.svg">
-  </a>
-</p>
+HealthMate AI is a Python-based application that helps users understand the information in their medical reports through AI-assisted explanations and conversational question answering.
 
-<p align="center">
-  <a href="#-features">Features</a> |
-  <a href="#%EF%B8%8F-tech-stack">Tech Stack</a> |
-  <a href="#-installation">Installation</a> |
-  <a href="#-project-structure">Project Structure</a> |
-  <a href="#-contributing">Contributing</a> |
-  <a href="#%EF%B8%8F-author">Author</a>
-</p>
+The project builds on an existing open-source health-report analysis application and is being customized and improved with a new interface, configuration, documentation, and additional development.
 
-<p align="center">
-  <a href="https://github.com/harshhh28/hia"><img src="https://raw.githubusercontent.com/harshhh28/hia/main/public/HIA_demo.gif" alt="Usage Demo"></a>
-</p>
+> **Important:** HealthMate AI is an informational tool, not a medical diagnostic system. Its responses may be inaccurate or incomplete. Always consult a qualified healthcare professional for medical decisions.
 
 ## 🌟 Features
 
-- **Agent-based architecture**
-  - **Analysis Agent**: Report analysis with in-context learning from previous analyses and a built-in knowledge base
-  - **Chat Agent**: RAG-powered follow-up Q&A over your report (FAISS + HuggingFace embeddings)
-- **Multi-model cascade** via Groq with automatic fallback (primary → secondary → tertiary → fallback)
-- **Chat sessions**: Create multiple analysis sessions; each session stores report, analysis, and follow-up messages in Supabase
-- **Report sources**: Upload your own PDF or use the built-in sample report for quick testing
-- **PDF handling**: Upload up to 20MB, max 50 pages; validation for file type and medical-report content
-- **Daily analysis limit**: Configurable cap (default 15/day) with countdown in the sidebar
-- **Secure auth**: Supabase Auth (sign up / sign in), session validation, and configurable session timeout
-- **Session history**: View, switch, and delete past sessions; report text persisted for follow-up chat across reloads
-- **Modern UI**: Responsive Streamlit app with sidebar session list, user greeting, and real-time feedback
+- **AI-powered report analysis:** Generate explanations of information extracted from uploaded reports.
+- **Conversational assistance:** Ask follow-up questions about report contents.
+- **PDF support:** Upload medical reports for text extraction and analysis.
+- **Sample report:** Explore the application using sample data.
+- **Multiple AI models:** Use a model fallback mechanism through Groq.
+- **Session management:** Organize report analysis and conversations into sessions.
+- **User authentication:** Supabase-based authentication.
+- **Modern interface:** Built using Streamlit and Python.
 
-## 🛠️ Tech Stack
+_Feature availability and implementation details will be verified and documented as development progresses._
 
-- **Frontend**: Streamlit (1.42+)
-- **AI / LLM**
-  - **Report analysis**: Groq with multi-model fallback via `ModelManager`
-    - Primary: `meta-llama/llama-4-maverick-17b-128e-instruct`
-    - Secondary: `llama-3.3-70b-versatile`
-    - Tertiary: `llama-3.1-8b-instant`
-    - Fallback: `llama3-70b-8192`
-  - **Follow-up chat**: RAG with LangChain, HuggingFace embeddings (`all-MiniLM-L6-v2`), FAISS vector store, and Groq (`llama-3.3-70b-versatile`)
-- **Database**: Supabase (PostgreSQL)
-  - Tables: `users`, `chat_sessions`, `chat_messages`
-- **Auth**: Supabase Auth, Gotrue
-- **PDF**: PDFPlumber (text extraction), filetype (file validation)
-- **Libraries**: LangChain, LangChain Community, LangChain HuggingFace, LangChain Text Splitters, sentence-transformers, FAISS (CPU)
+## 🛠️ Technology Stack
 
-## 🚀 Installation
+| Category                 | Technology            |
+| ------------------------ | --------------------- |
+| Programming Language     | Python                |
+| Frontend                 | Streamlit             |
+| AI Models                | Groq API              |
+| Language Model Framework | LangChain             |
+| Embeddings               | Hugging Face          |
+| Vector Database          | FAISS                 |
+| Backend Database         | Supabase / PostgreSQL |
+| Authentication           | Supabase Auth         |
+| PDF Processing           | PDFPlumber            |
 
-#### Requirements 📋
+## 🚀 Getting Started
 
-- Python 3.8+
-- Streamlit 1.42+
-- Supabase account
+### Prerequisites
+
+- Python 3.8 or later
+- Git
 - Groq API key
-- PDFPlumber, filetype
+- Supabase account and project
 
-#### Getting Started 📝
-
-1. Clone the repository:
+### 1. Clone the repository
 
 ```bash
-git clone https://github.com/harshhh28/hia.git
-cd hia
+git clone https://github.com/rajadityapal05/AI.git
+cd AI/health-insights-agent
 ```
 
-2. Install dependencies:
+### 2. Create a virtual environment
+
+```bash
+python -m venv .venv
+```
+
+Activate it on Windows:
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+### 3. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Required environment variables (in `.streamlit/secrets.toml`):
+### 4. Configure environment secrets
+
+Create `.streamlit/secrets.toml` and add your own credentials:
 
 ```toml
 SUPABASE_URL = "your-supabase-url"
@@ -87,77 +79,71 @@ SUPABASE_KEY = "your-supabase-key"
 GROQ_API_KEY = "your-groq-api-key"
 ```
 
-4. Set up Supabase database schema:
+Never commit real API keys, passwords, or private credentials to GitHub.
 
-The application uses three tables: `users`, `chat_sessions`, and `chat_messages`. Use the SQL script at `public/db/script.sql` to create them.
+### 5. Configure the database
 
-![database schema](https://raw.githubusercontent.com/harshhh28/hia/main/public/db/schema.png)
+Review the SQL setup script:
 
-(You can turn off email confirmation on signup in Supabase: **Authentication → Providers → Email → Confirm email**.)
+`public/db/script.sql`
 
-5. Run the application:
+Run the appropriate SQL statements in your Supabase project's SQL editor.
+
+### 6. Run the application
 
 ```bash
-streamlit run src\main.py
+streamlit run src/main.py
 ```
 
 ## 📁 Project Structure
 
-```
-hia/
+```text
+health-insights-agent/
 ├── requirements.txt
 ├── README.md
 ├── src/
-│   ├── main.py                 # Application entry point; chat UI and session flow
+│   ├── main.py
 │   ├── auth/
-│   │   ├── auth_service.py     # Supabase auth, sessions, chat message persistence
-│   │   └── session_manager.py # Session init, timeout, create/delete chat sessions
 │   ├── components/
-│   │   ├── analysis_form.py    # Report source (upload/sample), patient form, analysis trigger
-│   │   ├── auth_pages.py       # Login / signup pages
-│   │   ├── footer.py           # Footer component
-│   │   ├── header.py           # User greeting
-│   │   └── sidebar.py          # Session list, new session, daily limit, logout
 │   ├── config/
-│   │   ├── app_config.py       # App name, limits (upload, pages, analysis, timeout)
-│   │   ├── prompts.py          # Specialist prompts for report analysis
-│   │   └── sample_data.py      # Sample blood report for "Use Sample PDF"
 │   ├── services/
-│   │   └── ai_service.py       # Analysis + chat entry points; vector store caching
 │   ├── agents/
-│   │   ├── analysis_agent.py   # Report analysis, rate limits, knowledge base, in-context learning
-│   │   ├── chat_agent.py       # RAG pipeline (embeddings, FAISS, query contextualization)
-│   │   └── model_manager.py   # Groq multi-model cascade and fallback
 │   └── utils/
-│       ├── validators.py       # Email, password, PDF file and content validation
-│       └── pdf_extractor.py   # PDF text extraction and validation
-├── public/
-│   └── db/
-│       ├── script.sql          # Supabase schema (users, chat_sessions, chat_messages)
-│       └── schema.png          # Schema diagram
+└── public/
+    └── db/
 ```
 
-## 👥 Contributing
+## 🔐 Security and Privacy
 
-Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) for details on how to submit pull requests, the development workflow, coding standards, and more.
+- Keep API keys and database credentials private.
+- Do not upload real patient records when testing or demonstrating the application.
+- Use synthetic or sample data for development.
+- Review database access policies before deploying the application.
 
-We appreciate all contributions, from reporting bugs and improving documentation to implementing new features.
+## 🗺️ Development Roadmap
 
-## 👨‍💻 Contributors
-
-Thanks to all the amazing contributors who have helped improve this project!
-
-| Avatar | Name | GitHub | Role | Contributions | PR(s) | Notes |
-|--------|------|--------|------|---------------|-------|-------|
-| <img src="https://github.com/harshhh28.png" width="50px" height="50px" alt="harshhh28 avatar"/> | Harsh Gajjar | [harshhh28](https://github.com/harshhh28) | Project Creator & Maintainer | Core implementation, Documentation | N/A | Lead Developer |
-| <img src="https://github.com/gaurav98095.png" width="50px" height="50px" alt="gaurav98095 avatar"/> | Gaurav | [gaurav98095](https://github.com/gaurav98095) | Contributor | DB Schema, bugs | [#1](https://github.com/harshhh28/hia/pull/1), [#5](https://github.com/harshhh28/hia/pull/5), [#6](https://github.com/harshhh28/hia/pull/6), [#7](https://github.com/harshhh28/hia/pull/7) | Database Design, bugs |
-
-<!-- To future contributors: Your profile will be added here when your PR is merged! -->
+- [ ] Complete application rebranding.
+- [ ] Improve dashboard and user experience.
+- [ ] Review and improve PDF processing.
+- [ ] Test AI analysis and conversational responses.
+- [ ] Review authentication and session handling.
+- [ ] Improve error handling and validation.
+- [ ] Add testing and deployment documentation.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](https://github.com/harshhh28/hia/blob/main/LICENSE) file for details.
+This project retains the original project's MIT License. See the repository's `LICENSE` file for details.
 
-## 🙋‍♂️ Author
+## 🙏 Acknowledgements
 
-Created by [Harsh Gajjar](https://harshgajjar.vercel.app)
+This project builds upon the open-source **Health Insights Agent (HIA)** created by [Harsh Gajjar](https://github.com/harshhh28) and its contributors.
+
+The original implementation is available at:
+
+[github.com/harshhh28/hia](https://github.com/harshhh28/hia)
+
+## 👨‍💻 Project Maintainer
+
+**Raj Aditya Pal**
+
+GitHub: [@rajadityapal05](https://github.com/rajadityapal05)

@@ -1,4 +1,5 @@
 import streamlit as st
+
 from config.prompts import SPECIALIST_PROMPTS
 from utils.pdf_extractor import extract_text_from_pdf
 from config.sample_data import SAMPLE_REPORT
@@ -6,7 +7,18 @@ from config.app_config import MAX_UPLOAD_SIZE_MB
 
 
 def show_analysis_form():
-    # Initialize report source in session state for new sessions
+    st.subheader("ðŸ“„ Health Report Analysis")
+
+    st.caption(
+        "Upload a PDF report or explore the application "
+        "using the sample report."
+    )
+
+    st.info(
+        "Use synthetic or sample data while testing. "
+        "Avoid uploading identifiable medical records."
+    )
+
     if (
         "current_session" in st.session_state
         and "report_source" not in st.session_state
@@ -16,30 +28,39 @@ def show_analysis_form():
     report_source = st.radio(
         "Choose report source",
         ["Upload PDF", "Use Sample PDF"],
-        index=0 if st.session_state.get("report_source") == "Upload PDF" else 1,
+        index=(
+            0
+            if st.session_state.get("report_source") == "Upload PDF"
+            else 1
+        ),
         horizontal=True,
         key="report_source",
     )
 
     pdf_contents = get_report_contents(report_source)
 
-    if pdf_contents:  # Only show form if we have report content
+    if pdf_contents:
         render_patient_form(pdf_contents)
 
 
 def get_report_contents(report_source):
     if report_source == "Upload PDF":
         uploaded_file = st.file_uploader(
-            f"Upload blood report PDF (Max {MAX_UPLOAD_SIZE_MB}MB)",
+            f"Upload your health report (PDF, maximum {MAX_UPLOAD_SIZE_MB} MB)",
             type=["pdf"],
-            help=f"Maximum file size: {MAX_UPLOAD_SIZE_MB}MB. Only PDF files containing medical reports are supported",
+            help=(
+                f"Maximum file size: {MAX_UPLOAD_SIZE_MB} MB. "
+                "Only PDF files are supported."
+            ),
         )
-        if uploaded_file:
-            # Check file size before processing
-            file_size_mb = uploaded_file.size / (1024 * 1024)  # Convert to MB
+
+        if uploaded_file is not None:
+            file_size_mb = uploaded_file.size / (1024 * 1024)
+
             if file_size_mb > MAX_UPLOAD_SIZE_MB:
                 st.error(
-                    f"File size ({file_size_mb:.1f}MB) exceeds the {MAX_UPLOAD_SIZE_MB}MB limit."
+                    f"File size ({file_size_mb:.1f} MB) exceeds "
+                    f"the {MAX_UPLOAD_SIZE_MB} MB limit."
                 )
                 return None
 
@@ -47,64 +68,117 @@ def get_report_contents(report_source):
                 st.error("Please upload a valid PDF file.")
                 return None
 
-            pdf_contents = extract_text_from_pdf(uploaded_file)
-            if isinstance(pdf_contents, str) and (
-                pdf_contents.startswith(
-                    ("File size exceeds", "Invalid file type", "Error validating")
+            with st.spinner("Extracting text from your report..."):
+                pdf_contents = extract_text_from_pdf(uploaded_file)
+
+            if not isinstance(pdf_contents, str):
+                st.error("Unable to extract text from the uploaded PDF.")
+                return None
+
+            if not pdf_contents.strip():
+                st.error(
+                    "No readable text was found. "
+                    "Please use a text-based PDF report."
                 )
-                or pdf_contents.startswith("The uploaded file")
-                or "error" in pdf_contents.lower()
-            ):
+                return None
+
+            if pdf_contents.startswith(
+                (
+                    "File size exceeds",
+                    "Invalid file type",
+                    "Error validating",
+                    "The uploaded file",
+                )
+            ) or "error" in pdf_contents.lower():
                 st.error(pdf_contents)
                 return None
+
             with st.expander("View Extracted Report"):
                 st.text(pdf_contents)
+
             return pdf_contents
+
     else:
         with st.expander("View Sample Report"):
             st.text(SAMPLE_REPORT)
+
         return SAMPLE_REPORT
+
     return None
 
 
 def render_patient_form(pdf_contents):
+    st.markdown("### Patient Information")
+
     with st.form("analysis_form"):
-        patient_name = st.text_input("Patient Name")
+        patient_name = st.text_input(
+            "Patient Name",
+            help="Use a fictional name when testing the application.",
+        )
+
         col1, col2 = st.columns(2)
+
         with col1:
-            age = st.number_input("Age", min_value=0, max_value=120)
+            age = st.number_input(
+                "Age",
+                min_value=0,
+                max_value=120,
+                value=18,
+            )
+
         with col2:
-            gender = st.selectbox("Gender", ["Male", "Female", "Other"])
+            gender = st.selectbox(
+                "Gender",
+                ["Male", "Female", "Other"],
+            )
 
-        if st.form_submit_button("Analyze Report"):
-            handle_form_submission(patient_name, age, gender, pdf_contents)
+        submitted = st.form_submit_button(
+            "ðŸ” Analyze Health Report",
+            use_container_width=True,
+            type="primary",
+        )
+
+        if submitted:
+            handle_form_submission(
+                patient_name,
+                age,
+                gender,
+                pdf_contents,
+            )
 
 
-def handle_form_submission(patient_name, age, gender, pdf_contents):
-    if not all([patient_name, age, gender]):
-        st.error("Please fill in all fields")
+def handle_form_submission(
+    patient_name,
+    age,
+    gender,
+    pdf_contents,
+):
+    if not patient_name.strip():
+        st.error("Please enter the patient name.")
         return
 
-    # Check rate limit first, outside of spinner
     from services.ai_service import generate_analysis
 
-    can_analyze, error_msg = generate_analysis(None, None, check_only=True)
+    can_analyze, error_msg = generate_analysis(
+        None,
+        None,
+        check_only=True,
+    )
+
     if not can_analyze:
         st.error(error_msg)
-        st.stop()
         return
 
-    with st.spinner("Analyzing report..."):
-        # Save report content for follow-up chat (session state for immediate use)
+    with st.spinner(
+        "Analyzing the report. Please wait..."
+    ):
         st.session_state.current_report_text = pdf_contents
 
-        # Save user message and proceed with analysis
         st.session_state.auth_service.save_chat_message(
             st.session_state.current_session["id"],
             f"Analyzing report for patient: {patient_name}",
         )
 
-        # Generate analysis
         result = generate_analysis(
             {
                 "patient_name": patient_name,
@@ -116,23 +190,38 @@ def handle_form_submission(patient_name, age, gender, pdf_contents):
         )
 
         if result["success"]:
-            # Store report text as a system message for persistence
-            # This allows us to retrieve it later even after page refresh
-            report_metadata = f"__REPORT_TEXT__\n{pdf_contents}\n__END_REPORT_TEXT__"
-            st.session_state.auth_service.save_chat_message(
-                st.session_state.current_session["id"], report_metadata, role="system"
+            report_metadata = (
+                f"__REPORT_TEXT__\n"
+                f"{pdf_contents}\n"
+                f"__END_REPORT_TEXT__"
             )
 
-            # Add model used information if available
+            st.session_state.auth_service.save_chat_message(
+                st.session_state.current_session["id"],
+                report_metadata,
+                role="system",
+            )
+
             content = result["content"]
+
             if "model_used" in result:
-                model_info = f"\n\n*Analysis generated using {result['model_used']}*"
-                content += model_info
+                content += (
+                    f"\n\n*Analysis generated using "
+                    f"{result['model_used']}*"
+                )
 
             st.session_state.auth_service.save_chat_message(
-                st.session_state.current_session["id"], content, role="assistant"
+                st.session_state.current_session["id"],
+                content,
+                role="assistant",
             )
+
             st.rerun()
+
         else:
-            st.error(result["error"])
-            st.stop()
+            st.error(
+                result.get(
+                    "error",
+                    "An unexpected error occurred during analysis.",
+                )
+            )

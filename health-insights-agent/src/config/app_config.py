@@ -1,14 +1,16 @@
-APP_NAME = "HIA"
-APP_DESCRIPTION = "Your Personal Health Insights Agent"
-APP_ICON = "🩺"
-APP_TAGLINE = "Discover a Healthier You with AI"
+# HealthMate AI - Application Configuration
 
-# App settings
+APP_NAME = "HealthMate AI"
+APP_DESCRIPTION = "AI-Powered Health Report Assistant"
+APP_ICON = "ðŸ©º"
+APP_TAGLINE = "Understand Your Health Reports with AI-Assisted Insights"
+
+# App Settings
 MAX_UPLOAD_SIZE_MB = 20
 MAX_PDF_PAGES = 50
 SESSION_TIMEOUT_MINUTES = 30
 ANALYSIS_DAILY_LIMIT = 15
 
 # UI Settings
-PRIMARY_COLOR = "#64B5F6"
-SECONDARY_COLOR = "#1976D2"
+PRIMARY_COLOR = "#2563EB"
+SECONDARY_COLOR = "#0F172A"

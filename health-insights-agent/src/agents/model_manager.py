@@ -1,119 +1,158 @@
-import groq
-import streamlit as st
-from enum import Enum
+
 import logging
-import time
+import streamlit as st
+import groq
+
+from enum import Enum
 
 logger = logging.getLogger(__name__)
 
+
 class ModelTier(Enum):
     PRIMARY = "primary"
-    SECONDARY = "secondary" 
+    SECONDARY = "secondary"
     TERTIARY = "tertiary"
     FALLBACK = "fallback"
 
+
 class ModelManager:
-    """
-    Manages AI model selection, fallback, and rate limits.
-    Implements an agent-based approach for model management.
-    """
-    
+    """Manage Groq AI models and automatic fallback."""
+
     MODEL_CONFIG = {
         ModelTier.PRIMARY: {
-            "provider": "groq",
             "model": "meta-llama/llama-4-maverick-17b-128e-instruct",
             "max_tokens": 2000,
-            "temperature": 0.7
+            "temperature": 0.3
         },
         ModelTier.SECONDARY: {
-            "provider": "groq", 
             "model": "llama-3.3-70b-versatile",
             "max_tokens": 2000,
-            "temperature": 0.7
+            "temperature": 0.3
         },
         ModelTier.TERTIARY: {
-            "provider": "groq",
             "model": "llama-3.1-8b-instant",
-            "max_tokens": 2000, 
-            "temperature": 0.7
+            "max_tokens": 2000,
+            "temperature": 0.3
         },
         ModelTier.FALLBACK: {
-            "provider": "groq",
             "model": "llama3-70b-8192",
             "max_tokens": 2000,
-            "temperature": 0.7
+            "temperature": 0.3
         }
     }
-    
-    def __init__(self):
-        self.clients = {}
-        self._initialize_clients()
 
-    def _initialize_clients(self):
-        """Initialize API clients for each provider."""
+    def __init__(self):
+        self.client = None
+        self._initialize_client()
+
+    def _initialize_client(self):
+        """Initialize the Groq client."""
         try:
-            self.clients["groq"] = groq.Groq(api_key=st.secrets["GROQ_API_KEY"])
-        except Exception as e:
-            logger.error(f"Failed to initialize Groq client: {str(e)}")
+            api_key = st.secrets.get("GROQ_API_KEY")
+
+            if not api_key:
+                logger.warning("Groq API key is not configured.")
+                return
+
+            self.client = groq.Groq(api_key=api_key)
+
+        except Exception:
+            logger.exception("Could not initialize Groq client.")
 
     def generate_analysis(self, data, system_prompt, retry_count=0):
-        """
-        Generate analysis using the best available model with automatic fallback.
-        Implements agent-based decision making for model selection.
-        """
-        if retry_count > 3:
-            return {"success": False, "error": "All models failed after multiple retries"}
+        """Generate an AI response with automatic model fallback."""
 
-        # Determine which model tier to use based on retry count
-        if retry_count == 0:
-            tier = ModelTier.PRIMARY
-        elif retry_count == 1:
-            tier = ModelTier.SECONDARY
-        elif retry_count == 2:
-            tier = ModelTier.TERTIARY
-        else:
-            tier = ModelTier.FALLBACK
-            
-        model_config = self.MODEL_CONFIG[tier]
-        provider = model_config["provider"]
-        model = model_config["model"]
-        
-        # Check if we have a client for this provider
-        if provider not in self.clients:
-            logger.error(f"No client available for provider: {provider}")
-            return self.generate_analysis(data, system_prompt, retry_count + 1)
-            
-        try:
-            client = self.clients[provider]
-            logger.info(f"Attempting generation with {provider} model: {model}")
-            
-            if provider == "groq":
-                completion = client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": str(data)}
-                    ],
-                    temperature=model_config["temperature"],
-                    max_tokens=model_config["max_tokens"]
+        if self.client is None:
+            return {
+                "success": False,
+                "error": (
+                    "AI service is not configured. "
+                    "Please check GROQ_API_KEY in your Streamlit secrets."
                 )
-                
-                return {
-                    "success": True,
-                    "content": completion.choices[0].message.content,
-                    "model_used": f"{provider}/{model}"
-                }
-                
-        except Exception as e:
-            error_message = str(e).lower()
-            logger.warning(f"Model {model} failed: {error_message}")
-            
-            # Check for rate limit errors
-            if "rate limit" in error_message or "quota" in error_message:
-                # Wait briefly before retrying with a different model
-                time.sleep(2)
-            
-            # Try next model in hierarchy
-            return self.generate_analysis(data, system_prompt, retry_count + 1)
-            
-        return {"success": False, "error": "Analysis failed with all available models"}
+            }
+
+        tiers = list(ModelTier)
+
+        if retry_count >= len(tiers):
+            return {
+                "success": False,
+                "error": (
+                    "All configured AI models are currently unavailable. "
+                    "Please try again later."
+                )
+            }
+
+        tier = tiers[retry_count]
+        config = self.MODEL_CONFIG[tier]
+
+        # Do not send a patient name to the external AI provider.
+        if isinstance(data, dict):
+            safe_data = {
+                key: value
+                for key, value in data.items()
+                if key != "patient_name"
+            }
+        else:
+            safe_data = data
+
+        safety_instructions = """
+IMPORTANT RESPONSE GUIDELINES:
+- Provide educational explanations, not medical diagnoses.
+- Do not prescribe medicines or recommend changing treatment.
+- Explain medical terms in clear, simple language.
+- Distinguish reported values from general explanations.
+- Do not invent missing test results or reference ranges.
+- Mention when a value should be discussed with a qualified
+  healthcare professional.
+- If information is incomplete or unclear, say so.
+- Never claim certainty when the report does not support it.
+"""
+
+        final_prompt = (
+            system_prompt.strip()
+            + "\n\n"
+            + safety_instructions
+        )
+
+        try:
+            logger.info("Trying configured model: %s", config["model"])
+
+            completion = self.client.chat.completions.create(
+                model=config["model"],
+                messages=[
+                    {
+                        "role": "system",
+                        "content": final_prompt
+                    },
+                    {
+                        "role": "user",
+                        "content": str(safe_data)
+                    }
+                ],
+                temperature=config["temperature"],
+                max_tokens=config["max_tokens"]
+            )
+
+            content = completion.choices[0].message.content
+
+            if not content or not content.strip():
+                raise ValueError("The AI model returned an empty response.")
+
+            return {
+                "success": True,
+                "content": content,
+                "model_used": f"groq/{config['model']}"
+            }
+
+        except Exception as error:
+            logger.warning(
+                "Model %s failed: %s",
+                config["model"],
+                str(error)
+            )
+
+            return self.generate_analysis(
+                safe_data,
+                system_prompt,
+                retry_count + 1
+            )
